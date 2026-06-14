@@ -1,0 +1,58 @@
+%% Lore AI — full system & flow
+%% Solid nodes = built today.  Dashed (purple) nodes = target / not yet built.
+%% View: paste into https://mermaid.live, or VS Code with a Mermaid preview extension.
+
+flowchart TD
+
+    subgraph ENTRY["1 — CLI entry points"]
+        direction LR
+        I["npx lore-ai init<br/>Plan mode"]
+        SC["npx lore-ai scan<br/>Scan mode"]
+        SY["npx lore-ai sync<br/>Sync mode"]
+    end
+
+    I --> SEED["AI seeds root nodes<br/>+ required decisions"]
+    SC --> SCANNER["Scanner crawls codebase<br/>files · deps · imports · frameworks"] --> INFER["AI infers node graph"]
+    SY --> DIFF["Light scan + diff vs lore.md"] --> PATCH["AI returns graph patches"]
+
+    SEED --> UI
+    INFER --> UI
+    PATCH --> UI
+
+    subgraph BROWSER["2 — Browser UI (localhost)"]
+        UI["Node graph canvas<br/>the no-code surface"]
+        PREVIEW["Live preview pane<br/>the running app"]
+    end
+
+    UI --> ACT["User acts:<br/>drag · connect · pick stack · instruct (text/voice)"]
+    ACT --> INTENT["UI builds a structured intent<br/>(type, target, params)"]
+    INTENT --> ROUTER{"3 — Deterministic<br/>action?"}
+
+    ROUTER -->|"Yes: rename, add known<br/>component, connect, set stack"| CODEGEN["Codegen layer edits files<br/>directly — no LLM call"]
+    ROUTER -->|"No: fuzzy / creative intent"| SPEC["Spec compiler updates<br/>lore.md + CLAUDE.md"]
+
+    SPEC --> AUTH{"4 — Auth / billing"}
+    AUTH -->|"ANTHROPIC_API_KEY set"| KEY["Use API key<br/>pay-as-you-go (takes precedence)"]
+    AUTH -->|"Logged in to Claude plan"| CREDIT{"Agent SDK<br/>credit left?"}
+    AUTH -->|"Neither"| LOGIN["Prompt: claude /login<br/>or paste an API key"]
+    CREDIT -->|"Yes"| SUB["Run on subscription<br/>no extra bill"]
+    CREDIT -->|"No — exhausted"| FB["Prompt to add an API key"]
+    LOGIN --> AUTH
+    FB --> KEY
+
+    KEY --> ENGINE
+    SUB --> ENGINE
+    ENGINE["5 — Claude Agent SDK<br/>system prompt + lore.md/CLAUDE.md + tools"] --> WORK["Claude reasons &<br/>edits files via tools"]
+
+    CODEGEN --> FILES
+    WORK --> FILES
+    FILES["6 — Project files on disk"] --> HOT["Preview runtime hot-reloads<br/>Vite dev server / WebContainer"]
+    HOT --> PREVIEW
+    PREVIEW --> UI
+
+    %% scan/sync read backward: files -> graph
+    SCANNER -. reads .-> FILES
+    DIFF -. reads .-> FILES
+
+    classDef target stroke:#6c63ff,stroke-width:2px,stroke-dasharray:6 4;
+    class PREVIEW,CODEGEN,AUTH,CREDIT,SUB,FB,LOGIN,KEY,ENGINE,WORK,HOT target;

@@ -1,0 +1,193 @@
+import { Router } from 'express';
+import fs from 'node:fs';
+import path from 'node:path';
+import { crawlFileTree } from '../scanner/fileTree.js';
+import { readDependencies, readPythonDependencies } from '../scanner/dependencies.js';
+import { parseImports } from '../scanner/imports.js';
+import { detectFrameworks } from '../scanner/frameworks.js';
+import { extractDbSchema } from '../scanner/dbSchema.js';
+import { gatherSources } from '../scanner/sources.js';
+import { askClaudeJSON } from '../lib/anthropic.js';
+
+function handle(fn) {
+  return async (req, res) => {
+    try {
+      await fn(req, res);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: err.message, raw: err.raw });
+    }
+  };
+}
+
+/** Gather a structured scan summary of the project for the AI. */
+async function gatherScan(root, { full = true } = {}) {
+  const tree = await crawlFileTree(root);
+  const deps = readDependencies(root);
+  const python = readPythonDependencies(root);
+  const frameworks = detectFrameworks(root, deps);
+  const imports = full ? parseImports(root, tree.files) : { graph: [], externalCounts: {} };
+
+  return { tree, deps, python, frameworks, imports };
+}
+
+/** Compact the scan into a token-friendly string for Claude. */
+function summarize(scan) {
+  const { tree, deps, python, frameworks, imports } = scan;
+  const lines = [];
+  lines.push(`File count: ${tree.fileCount}`);
+  lines.push(`Extensions: ${JSON.stringify(tree.extensions)}`);
+  lines.push('\nFile tree:\n' + tree.tree);
+  if (deps.hasPackageJson) {
+    lines.push(`\npackage.json name: ${deps.name || '(none)'}`);
+    lines.push(`Scripts: ${JSON.stringify(deps.scripts)}`);
+    lines.push(`Dependencies: ${Object.keys(deps.dependencies).join(', ')}`);
+    lines.push(`Dev dependencies: ${Object.keys(deps.devDependencies).join(', ')}`);
+  }
+  if (python) lines.push(`\nPython: ${JSON.stringify(python).slice(0, 1500)}`);
+  lines.push(`\nDetected frameworks: ${frameworks.frameworks.join(', ') || 'none'}`);
+  lines.push(`Schema files: ${frameworks.schemaFiles.join(', ') || 'none'}`);
+  lines.push(`Env keys (names only): ${frameworks.envKeys.join(', ') || 'none'}`);
+  if (imports.graph.length) {
+    const top = Object.entries(imports.externalCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 30)
+      .map(([k, v]) => `${k}(${v})`)
+      .join(', ');
+    lines.push(`\nMost-imported external packages: ${top}`);
+  }
+  return lines.join('\n');
+}
+
+const GRAPH_SYSTEM = [
+  'You are the reverse-engineering engine for Lore AI.',
+  'Given a structured scan of an existing codebase, infer the architecture and produce a node graph.',
+  'Label nodes by what they actually are (frameworks, layers, databases, API surfaces, integrations).',
+  'Output JSON shaped exactly as:',
+  '{',
+  '  "summary": "2-3 sentence overview of the project",',
+  '  "nodes": [{ "title": "Backend (Express)", "type": "core|custom|integration", "stack": ["Express","Node"], "notes": "what this is" }],',
+  '  "edges": [{ "from": "Backend (Express)", "to": "Database (Postgres)", "label": "reads from" }]',
+  '}',
+  'Use node titles (not ids) in edges; the client will resolve them.',
+].join('\n');
+
+const GRAPH_DEEP_SYSTEM = [
+  'You are the deep reverse-engineering engine for Lore AI.',
+  'You receive a high-level scan PLUS the ACTUAL SOURCE CODE of the project (any language: Python, JS/TS, Java, Go, SQL, etc.).',
+  'Read the real code and assemble a NESTED architecture graph: top-level blocks, each containing its real internals as a child graph.',
+  '',
+  'Rules for children:',
+  '- Database / data-model block: children.nodes = one per table or model (title = table/model name, detailType "table",',
+  '  notes = its key fields). children.edges = relations / foreign keys (from -> to, label = the relation).',
+  '  Read this from whatever defines the schema — Prisma, SQL, SQLAlchemy/Django/Pydantic models, etc.',
+  '- Backend / Frontend / code blocks: children.nodes = the modules or key files/classes (title, detailType "module",',
+  '  notes = the classes/functions/responsibilities you see in the code). children.edges = import/call relationships.',
+  '- Base everything on the ACTUAL CODE provided. Do NOT invent tables, fields, files, or relations.',
+  '- If some files were omitted (large repo), infer conservatively from what is shown and the file tree; do not fabricate detail.',
+  '',
+  'Output JSON shaped exactly as:',
+  '{',
+  '  "summary": "2-3 sentence overview",',
+  '  "nodes": [{ "title": "Database (Postgres)", "type": "core", "detailType": "database", "stack": ["Postgres"], "notes": "...",',
+  '             "children": { "nodes": [{ "title": "User", "type": "custom", "detailType": "table", "notes": "id, email, ..." }],',
+  '                           "edges": [{ "from": "User", "to": "Post", "label": "has many" }] } }],',
+  '  "edges": [{ "from": "Backend", "to": "Database (Postgres)", "label": "reads from" }]',
+  '}',
+  'Edges reference node titles within the SAME level.',
+].join('\n');
+
+export function createScanRouter(ctx) {
+  const router = Router();
+
+  // Full scan → node graph.
+  router.post(
+    '/',
+    handle(async (_req, res) => {
+      const scan = await gatherScan(ctx.projectRoot, { full: true });
+      const summary = summarize(scan);
+      const graph = await askClaudeJSON(GRAPH_SYSTEM, `Scan summary:\n${summary}`);
+      res.json({ scanSummary: summary, ...graph });
+    })
+  );
+
+  // Deep scan: parse DB schema + code structure deterministically, then have
+  // the AI assemble a NESTED graph (blocks with real internals as children).
+  router.post(
+    '/deep',
+    handle(async (_req, res) => {
+      const scan = await gatherScan(ctx.projectRoot, { full: true });
+      const db = await extractDbSchema(ctx.projectRoot);
+      // Feed the AI the ACTUAL source (any language), budgeted for big repos.
+      const sources = gatherSources(ctx.projectRoot, scan.tree.files);
+
+      const summary =
+        summarize(scan) +
+        `\n\n=== SOURCE FILES (${sources.includedCount}/${sources.totalCount}` +
+        `${sources.omittedCount ? `, ${sources.omittedCount} omitted for size` : ''}) ===\n` +
+        sources.text;
+      const graph = await askClaudeJSON(GRAPH_DEEP_SYSTEM, `Deep scan:\n${summary}`, { maxTokens: 32000 });
+
+      // If a Prisma/SQL schema was present, overwrite the DB block's children
+      // with the exact parsed tables/relations (free, exact). Other languages
+      // (Python models, etc.) are handled by the AI reading the source above.
+      if (db.tables.length) {
+        const children = {
+          nodes: db.tables.map((t) => ({
+            title: t.name,
+            type: 'custom',
+            detailType: 'table',
+            fields: t.fields.map((f) => ({ name: f.name, type: f.type, rel: f.refTable })),
+            notes: t.fields.map((f) => f.name).join(', '),
+          })),
+          edges: db.relations.map((r) => ({ from: r.from, to: r.to, label: r.label })),
+        };
+        graph.nodes = graph.nodes || [];
+        const dbNode = graph.nodes.find((n) => n.detailType === 'database');
+        if (dbNode) dbNode.children = children;
+        else graph.nodes.push({ title: 'Database', type: 'core', detailType: 'database', notes: `${db.tables.length} tables`, children });
+      }
+
+      res.json({
+        scanSummary: summary,
+        parsed: {
+          tableCount: db.tables.length,
+          relationCount: db.relations.length,
+          filesRead: sources.includedCount,
+          filesTotal: sources.totalCount,
+          omitted: sources.omittedCount,
+        },
+        ...graph,
+      });
+    })
+  );
+
+  // Sync: light scan diffed against the existing lore.md, returns patch suggestions.
+  router.post(
+    '/sync',
+    handle(async (_req, res) => {
+      const lorePath = path.join(ctx.projectRoot, 'lore.md');
+      if (!fs.existsSync(lorePath)) {
+        return res.status(400).json({ error: 'No lore.md found to sync against. Run a scan or plan first.' });
+      }
+      const existing = fs.readFileSync(lorePath, 'utf8');
+      const scan = await gatherScan(ctx.projectRoot, { full: false });
+      const summary = summarize(scan);
+
+      const system = [
+        'You are the sync engine for Lore AI.',
+        'Compare the existing lore.md blueprint against a fresh lightweight scan of the codebase.',
+        'Identify ONLY what changed: new nodes, removed nodes, or stack/dependency shifts.',
+        'Be surgical — do not rewrite unchanged parts.',
+        'Output JSON shaped exactly as:',
+        '{ "patches": [{ "node": "title or NEW", "change": "added|removed|modified", "detail": "what changed and the suggested edit" }] }',
+      ].join('\n');
+
+      const user = `Existing lore.md:\n${existing}\n\n---\n\nFresh scan summary:\n${summary}`;
+      const data = await askClaudeJSON(system, user);
+      res.json(data);
+    })
+  );
+
+  return router;
+}

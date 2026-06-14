@@ -1,0 +1,56 @@
+{
+  "name": "lore-ai",
+  "version": "0.1.0",
+  "description": "Visual architecture planning and scanning for AI-assisted development",
+  "type": "module",
+  "bin": {
+    "lore": "./bin/lore.js",
+    "lore-ai": "./bin/lore.js"
+  },
+  "files": [
+    "bin",
+    "src/server",
+    "dist/client"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n server,client \"node bin/lore.js open --no-open --dev\" \"vite\"",
+    "build": "vite build",
+    "start": "node bin/lore.js open",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "claude",
+    "ai",
+    "architecture",
+    "planning",
+    "claude-code",
+    "developer-tools"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.177",
+    "@anthropic-ai/sdk": "^0.104.1",
+    "@babel/parser": "^7.26.0",
+    "commander": "^12.1.0",
+    "dependency-cruiser": "^16.5.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "glob": "^11.0.0",
+    "open": "^10.1.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.0.1",
+    "postcss": "^8.4.47",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "reactflow": "^11.11.4",
+    "tailwindcss": "^3.4.14",
+    "vite": "^5.4.10",
+    "zustand": "^5.0.1"
+  }
+}

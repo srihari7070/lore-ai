@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.DS_Store
+*.log
+
+# Lore AI outputs (generated into a user's project, not part of this repo)
+lore.md
+CLAUDE.md
+.lore/

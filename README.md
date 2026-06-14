@@ -21,7 +21,7 @@ Lore AI replaces both with a **spatial, visual interface**: the architecture *is
 ## Install & commands
 
 ```bash
-npm install -g lore-ai      # one-time install
+npm install -g ai-lore      # one-time install
 ```
 
 Then, from inside any project:
@@ -109,7 +109,7 @@ Node.js + Commander (CLI) · Express (local server) · React + Vite + React Flow
 ## Local development
 
 ```bash
-git clone <repo> && cd lore-ai
+git clone https://github.com/srihari7070/lore-ai && cd lore-ai
 npm install
 npm run dev      # Vite client on :5173, API on :3333 (proxied) — full error messages, hot reload
 npm run build    # builds dist/client (shipped in the published package)

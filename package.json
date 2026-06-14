@@ -1,11 +1,11 @@
 {
-  "name": "lore-ai",
+  "name": "ai-lore",
   "version": "0.1.0",
-  "description": "Visual architecture planning and scanning for AI-assisted development",
+  "description": "See your codebase as a living architecture map — then edit the map and let Claude build the code",
   "type": "module",
   "bin": {
     "lore": "./bin/lore.js",
-    "lore-ai": "./bin/lore.js"
+    "ai-lore": "./bin/lore.js"
   },
   "files": [
     "bin",

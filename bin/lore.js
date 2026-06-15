@@ -2,8 +2,6 @@
 import { Command } from 'commander';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import fs from 'node:fs';
-import readline from 'node:readline';
 import open from 'open';
 import dotenv from 'dotenv';
 import { startServer } from '../src/server/index.js';
@@ -22,62 +20,23 @@ program
   .description('Visual architecture planning and scanning for AI-assisted development')
   .version('0.1.0');
 
-function ask(question, { hidden = false } = {}) {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    if (hidden) {
-      // Mute echo so the API key isn't printed to the terminal: write the
-      // prompt once, then swallow all subsequent output until the answer.
-      let muted = false;
-      const original = rl._writeToOutput.bind(rl);
-      rl._writeToOutput = (str) => {
-        if (muted) return;
-        original(str);
-        if (str.includes(question)) muted = true;
-      };
-      rl.question(question, (answer) => {
-        rl.output.write('\n');
-        rl.close();
-        resolve(answer.trim());
-      });
-    } else {
-      rl.question(question, (answer) => {
-        rl.close();
-        resolve(answer.trim());
-      });
-    }
-  });
-}
-
-async function ensureApiKey() {
-  if (process.env.ANTHROPIC_API_KEY) return;
-
-  console.log('\n  Lore AI needs your Anthropic API key (brought by you — nothing runs on our servers).');
-  console.log('  Get one at https://console.anthropic.com/settings/keys\n');
-
-  const key = await ask('  Paste your ANTHROPIC_API_KEY: ', { hidden: true });
-  if (!key) {
-    console.error('\n  No key provided. Exiting.');
-    process.exit(1);
+async function ensureAuth() {
+  // Subscription-first: Lore runs on your Claude plan via the Agent SDK
+  // (claude /login). An API key is only a fallback. So we never *block* on a
+  // key — if one is set we use it; otherwise we use the subscription.
+  if (process.env.ANTHROPIC_API_KEY) {
+    console.log('\n  Using ANTHROPIC_API_KEY (pay-as-you-go).');
+    return;
   }
-
-  const envPath = path.join(projectRoot, '.env');
-  let existing = '';
-  try {
-    existing = fs.readFileSync(envPath, 'utf8');
-  } catch {
-    /* no existing .env */
-  }
-  if (!/^ANTHROPIC_API_KEY=/m.test(existing)) {
-    const prefix = existing && !existing.endsWith('\n') ? '\n' : '';
-    fs.appendFileSync(envPath, `${prefix}ANTHROPIC_API_KEY=${key}\n`);
-    console.log(`  Saved to ${path.relative(projectRoot, envPath) || '.env'}\n`);
-  }
-  process.env.ANTHROPIC_API_KEY = key;
+  console.log(
+    '\n  No ANTHROPIC_API_KEY set — using your Claude subscription.' +
+      '\n  (If Claude isn\'t logged in, run `claude /login` first.' +
+      '\n   To use an API key instead, set ANTHROPIC_API_KEY.)'
+  );
 }
 
 async function run(mode, options) {
-  await ensureApiKey();
+  await ensureAuth();
 
   const port = Number(process.env.LORE_PORT) || 3333;
   const url = `http://localhost:${port}`;

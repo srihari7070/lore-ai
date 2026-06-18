@@ -21,7 +21,7 @@ Lore AI replaces both with a **spatial, visual interface**: the architecture *is
 ## Install & commands
 
 ```bash
-npm install -g ai-lore      # one-time install
+npm install -g lore-map     # one-time install
 ```
 
 Then, from inside any project:

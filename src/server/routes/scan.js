@@ -95,6 +95,11 @@ const GRAPH_DEEP_SYSTEM = [
   '  "edges": [{ "from": "Backend", "to": "Database (Postgres)", "label": "reads from" }]',
   '}',
   'Edges reference node titles within the SAME level.',
+  '',
+  'Keep it concise so the response stays bounded: 4-8 top-level blocks; at most',
+  '~20 children per block (group/summarize the rest rather than listing every file);',
+  'notes are one short phrase, not paragraphs. Favor the most structurally important',
+  'items. Output ONLY the JSON object.',
 ].join('\n');
 
 export function createScanRouter(ctx) {

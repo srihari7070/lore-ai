@@ -34,10 +34,11 @@ const SKIP_RE = /(\.min\.|\.map$|\.lock$|-lock\.|\.d\.ts$)/i;
  * @param {string}   root
  * @param {string[]} files            project-relative file list (from crawlFileTree)
  * @param {object}   [opts]
- * @param {number}   [opts.totalBudget=350000]  total chars of source to include
- * @param {number}   [opts.maxFileChars=14000]  per-file cap (truncated beyond)
+ * @param {number}   [opts.totalBudget=80000]  total chars of source to include
+ * @param {number}   [opts.maxFileChars=4000]  per-file cap (truncated beyond)
+ * @param {number}   [opts.maxFiles=80]        max number of files to include
  */
-export function gatherSources(root, files, { totalBudget = 350000, maxFileChars = 14000 } = {}) {
+export function gatherSources(root, files, { totalBudget = 80000, maxFileChars = 4000, maxFiles = 80 } = {}) {
   const candidates = files.filter(
     (f) => SOURCE_EXTS.has(path.extname(f).toLowerCase()) && !SKIP_RE.test(f)
   );
@@ -64,7 +65,7 @@ export function gatherSources(root, files, { totalBudget = 350000, maxFileChars 
   let truncatedFiles = 0;
 
   for (const { file } of sized) {
-    if (used >= totalBudget) break;
+    if (used >= totalBudget || included >= maxFiles) break;
     let content;
     try {
       content = fs.readFileSync(path.join(root, file), 'utf8');

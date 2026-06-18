@@ -33,22 +33,38 @@ async function runQuery(system, user, { model: modelOverride } = {}) {
     options: {
       model: modelOverride || model(),
       systemPrompt: system, // custom system prompt (string), not the claude_code preset
-      allowedTools: [], // pure generation — no file/bash tools
-      maxTurns: 1,
+      allowedTools: [], // pure generation — no file/bash tools (no tool loops)
+      // Large outputs (e.g. the deep-scan graph) can span multiple turns when a
+      // turn hits the output-token limit; give it room to finish. With no tools,
+      // extra turns only ever continue the generation.
+      maxTurns: 24,
       settingSources: [], // don't load the project's CLAUDE.md into reasoning calls
     },
   });
 
-  let text = '';
+  // Accumulate the model's text as it streams, and also capture the final
+  // success result. Preferring the success result when present, but falling
+  // back to the accumulated text means a turn-cap stop still yields output
+  // instead of a hard crash.
+  let assistantText = '';
+  let resultText = null;
+  let errorSubtype = null;
   for await (const message of stream) {
-    if (message.type === 'result') {
-      if (message.subtype && message.subtype !== 'success') {
-        throw new Error(`Claude returned: ${message.subtype}`);
+    if (message.type === 'assistant') {
+      for (const block of message.message?.content || []) {
+        if (block.type === 'text') assistantText += block.text;
       }
-      text = message.result ?? '';
+    } else if (message.type === 'result') {
+      if (message.subtype === 'success') resultText = message.result ?? '';
+      else errorSubtype = message.subtype;
     }
   }
-  return text.trim();
+
+  const text = (resultText ?? assistantText).trim();
+  if (!text) {
+    throw new Error(`Claude returned no usable output${errorSubtype ? ` (${errorSubtype})` : ''}`);
+  }
+  return text;
 }
 
 /**

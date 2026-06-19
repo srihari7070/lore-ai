@@ -3,6 +3,17 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 // The builder model is user-selectable in the UI; default to the balanced one.
 const DEFAULT_BUILDER_MODEL = process.env.LORE_BUILDER_MODEL || 'claude-sonnet-4-6';
 
+// Standing guidance so the builder uses the architecture map to scope its work
+// instead of reading the whole codebase. Shared with the hand-off prompt.
+export const SCOPING_NOTE = [
+  '',
+  'IMPORTANT — work efficiently using the project map:',
+  'This project has a Lore architecture map. Read `.lore/map.md` (or `lore.md` / `CLAUDE.md`) FIRST',
+  'to find exactly which file(s) and area this change concerns, then open only those files.',
+  'Only explore more of the codebase if the map genuinely does not cover what you need.',
+  'Do not read the entire project by default.',
+].join('\n');
+
 /**
  * Reports how the Agent SDK will authenticate. If ANTHROPIC_API_KEY is set the
  * SDK uses it (pay-as-you-go); otherwise it falls back to the user's Claude
@@ -38,7 +49,8 @@ export async function runBuild({ instruction, projectRoot, model, onEvent }) {
       allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob'],
       // claude_code preset gives the file-editing agent behavior; settingSources
       // ['project'] makes it load the project's CLAUDE.md as standing context.
-      systemPrompt: { type: 'preset', preset: 'claude_code' },
+      // The append tells it to use the map to scope its file reading.
+      systemPrompt: { type: 'preset', preset: 'claude_code', append: SCOPING_NOTE },
       settingSources: ['project'],
     },
   });

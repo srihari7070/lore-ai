@@ -3,6 +3,7 @@ import ReactFlow, { Background, Controls, MiniMap, BackgroundVariant } from 'rea
 import NodeCard from './NodeCard.jsx';
 import TableNode from './TableNode.jsx';
 import ModuleNode from './ModuleNode.jsx';
+import RootNode from './RootNode.jsx';
 import Breadcrumb from './Breadcrumb.jsx';
 import { useGraphStore, graphAtPath } from '../store/graphStore.js';
 
@@ -23,7 +24,10 @@ export default function Canvas() {
     [rootNodes, rootEdges, path]
   );
 
-  const nodeTypes = useMemo(() => ({ lore: NodeCard, table: TableNode, module: ModuleNode }), []);
+  const nodeTypes = useMemo(
+    () => ({ lore: NodeCard, table: TableNode, module: ModuleNode, root: RootNode }),
+    []
+  );
 
   return (
     <>
@@ -35,8 +39,10 @@ export default function Canvas() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onNodeClick={(_e, node) => selectNode(node.id)}
-        onNodeDoubleClick={(_e, node) => drillInto(node.id)}
+        onNodeClick={(_e, node) => selectNode(node.type === 'root' ? null : node.id)}
+        onNodeDoubleClick={(_e, node) => {
+          if (node.type !== 'root') drillInto(node.id);
+        }}
         onPaneClick={() => selectNode(null)}
         fitView
         proOptions={{ hideAttribution: true }}

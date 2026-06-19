@@ -123,20 +123,64 @@ export const useGraphStore = create((set, get) => ({
   committed: null,
   buildResult: null,
   handoffResult: null,
+  buildProgress: null, // { active, percent, phase, lastAction, activities[], startedAt }
 
   setConfig: (config) => set({ config }),
   setBuilderModel: (builderModel) => set({ builderModel }),
   setBuildResult: (buildResult) => set({ buildResult }),
   setHandoffResult: (handoffResult) => set({ handoffResult }),
+  setBuildProgress: (patch) =>
+    set({ buildProgress: patch === null ? null : { ...(get().buildProgress || {}), ...patch } }),
+  pushActivity: (action) => {
+    const bp = get().buildProgress;
+    if (!bp) return;
+    const activities = [...(bp.activities || []), action].slice(-50);
+    // Activity-driven bar: ramps toward ~92% with each action, then 100% on done.
+    const percent = Math.min(92, 14 + activities.length * 4);
+    set({ buildProgress: { ...bp, activities, lastAction: action, percent } });
+  },
   markCommitted: () => set({ committed: get().serializeGraph() }),
 
   // Build the canvas from an AI-generated plan/scan payload (supports nesting).
+  // The top level is arranged as a TREE: a bold project root at the top with
+  // every top-level node hanging beneath it.
   loadGraph: ({ summary, nodes = [], edges = [], decisions = [] }) => {
     const { nodes: rfNodes, edges: rfEdges } = buildGraph({ nodes, edges });
+
+    // Position the top-level nodes in rows beneath the root.
+    const perRow = 4;
+    const gapX = 280;
+    const gapY = 200;
+    rfNodes.forEach((n, i) => {
+      n.position = { x: (i % perRow) * gapX, y: 180 + Math.floor(i / perRow) * gapY };
+    });
+
+    // Inject the project root node, centered above the first row.
+    const rootId = nextId();
+    const rowCount = Math.min(rfNodes.length, perRow);
+    const rootNode = {
+      id: rootId,
+      type: 'root',
+      position: { x: Math.max(0, (rowCount * gapX) / 2 - 90), y: 0 },
+      data: {
+        title: get().config.projectName || 'Project',
+        subtitle: 'architecture',
+        isRoot: true,
+      },
+    };
+
+    // Connect the root to every top-level node (the tree edges).
+    const treeEdges = rfNodes.map((n, i) => ({
+      id: `root-${i}-${Date.now()}`,
+      source: rootId,
+      target: n.id,
+      style: { stroke: 'rgba(94,169,255,0.45)', strokeWidth: 1 },
+    }));
+
     set({
       summary: summary || '',
-      nodes: rfNodes,
-      edges: rfEdges,
+      nodes: [rootNode, ...rfNodes],
+      edges: [...rfEdges, ...treeEdges],
       path: [],
       selectedNodeId: null,
       decisions: (decisions || []).map((text, i) => ({ id: `d${i}`, text, answered: false })),
@@ -243,11 +287,13 @@ export const useGraphStore = create((set, get) => ({
   serializeGraph: () => {
     const { nodes, edges, summary, decisions } = get();
     const serializeLevel = (lvlNodes, lvlEdges) => {
+      // The injected project root is presentation only — never part of the spec.
+      const real = lvlNodes.filter((n) => n.type !== 'root' && !n.data.isRoot);
       const idToTitle = {};
-      lvlNodes.forEach((n) => {
+      real.forEach((n) => {
         idToTitle[n.id] = n.data.title;
       });
-      return lvlNodes.map((n) => ({
+      return real.map((n) => ({
         title: n.data.title,
         type: n.data.nodeType,
         detailType: n.data.detailType,

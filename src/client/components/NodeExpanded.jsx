@@ -103,9 +103,10 @@ export default function NodeExpanded() {
         <button
           onClick={handleStructure}
           disabled={loading || !data.dump.trim()}
+          title="Organize your notes above into boxes on the map (does NOT change code)"
           className="rounded-md bg-accent px-3 py-1.5 font-mono text-sm text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {loading ? 'Structuring…' : 'Structure ↦ sub-nodes'}
+          {loading ? 'Organizing…' : '＋ Break notes into boxes on the map'}
         </button>
         {error && <span className="ml-3 text-xs text-warning">{error}</span>}
       </div>

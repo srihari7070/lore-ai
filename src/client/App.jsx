@@ -15,6 +15,7 @@ export default function App() {
   const compiledMarkdown = useGraphStore((s) => s.compiledMarkdown);
   const buildResult = useGraphStore((s) => s.buildResult);
   const handoffResult = useGraphStore((s) => s.handoffResult);
+  const buildProgress = useGraphStore((s) => s.buildProgress);
   const [configLoaded, setConfigLoaded] = useState(false);
 
   useEffect(() => {
@@ -42,12 +43,70 @@ export default function App() {
           )}
           {configLoaded && config.mode === 'sync' && <SyncPanel />}
 
+          {buildProgress?.active && <BuildProgressModal />}
           {compiledMarkdown && <CompiledModal />}
           {buildResult && <BuildResultModal />}
           {handoffResult && <HandoffModal />}
         </div>
       </div>
     </ReactFlowProvider>
+  );
+}
+
+// ── Live build progress: bar + real actions as they stream in ──────────────
+function BuildProgressModal() {
+  const bp = useGraphStore((s) => s.buildProgress);
+  const [, tick] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => tick((n) => n + 1), 500);
+    return () => clearInterval(id);
+  }, []);
+
+  if (!bp) return null;
+  const elapsed = bp.startedAt ? Math.floor((Date.now() - bp.startedAt) / 1000) : 0;
+  const isError = bp.phase === 'error';
+  const pct = Math.max(0, Math.min(100, Math.round(bp.percent || 0)));
+
+  return (
+    <div className="absolute inset-0 z-40 flex items-center justify-center bg-bg/85 p-8 backdrop-blur-sm">
+      <div className="w-full max-w-xl rounded-xl border border-accent/40 bg-node p-6 shadow-glow-strong">
+        <div className="mb-3 flex items-center justify-between font-mono text-sm">
+          <span className={isError ? 'text-warning' : 'text-accent'}>
+            {isError ? '✕ Build failed' : bp.phase === 'done' ? '✓ Build complete' : '▶ Building…'}
+          </span>
+          <span className="text-text-muted">{elapsed}s · {pct}%</span>
+        </div>
+
+        {/* Progress bar */}
+        <div className="h-2 w-full overflow-hidden rounded-full bg-canvas">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${isError ? 'bg-warning' : 'bg-accent'}`}
+            style={{ width: `${isError ? 100 : pct}%` }}
+          />
+        </div>
+
+        {/* Current action */}
+        <p className="mt-3 truncate font-mono text-xs text-text-primary" title={bp.lastAction}>
+          {bp.lastAction || 'Working…'}
+        </p>
+
+        {/* Recent activity feed */}
+        {bp.activities?.length > 0 && (
+          <div className="lore-scroll mt-3 max-h-40 space-y-1 overflow-auto rounded border border-white/10 bg-canvas p-2">
+            {bp.activities.slice(-12).map((a, i) => (
+              <div key={i} className="font-mono text-[11px] text-text-muted">
+                <span className="text-accent/60">·</span> {a}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <p className="mt-3 text-[10px] text-text-muted">
+          The percentage tracks activity, not exact completion — Claude decides its own steps.
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -214,12 +273,27 @@ function ScanRunner({ deep = false }) {
   const loadGraph = useGraphStore((s) => s.loadGraph);
   const { runScan, runDeepScan, loading, error } = useAI();
   const [started, setStarted] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
 
   const scan = useCallback(async () => {
     setStarted(true);
     const result = await (deep ? runDeepScan() : runScan());
     loadGraph(result);
   }, [deep, runScan, runDeepScan, loadGraph]);
+
+  // Tick an elapsed-seconds timer while the scan runs.
+  useEffect(() => {
+    if (!started || !loading) return;
+    const t0 = Date.now();
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - t0) / 1000)), 500);
+    return () => clearInterval(id);
+  }, [started, loading]);
+
+  // Scans are a single request (no live events), so the bar is a time-based
+  // estimate that eases toward ~92% — honest, and it shows things are moving.
+  const expected = deep ? 90 : 35; // rough seconds
+  const pct = Math.min(92, Math.round(100 * (1 - Math.exp(-elapsed / expected))));
+  const running = started && loading;
 
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-canvas/80 backdrop-blur-sm">
@@ -229,20 +303,30 @@ function ScanRunner({ deep = false }) {
         </h1>
         <p className="mb-5 text-sm text-text-muted">
           {deep
-            ? 'Parses your database schema (tables, fields, relations) and code structure (classes, functions, imports) locally, then assembles a drill-down map. Heavier, but you see the real internals.'
-            : 'Crawls the file tree, dependencies, imports, and frameworks, then asks Claude for a high-level architecture map.'}
+            ? 'Reads your code (any language) and database schema, then assembles a drill-down map. Heavier, but you see the real internals.'
+            : 'Crawls the file tree, dependencies, and frameworks, then asks Claude for a high-level architecture map.'}
         </p>
-        {!started || error ? (
+
+        {running ? (
+          <div>
+            <div className="mb-2 flex items-center justify-between font-mono text-xs text-text-muted">
+              <span className="text-success">{deep ? 'Reading code & mapping…' : 'Scanning & mapping…'}</span>
+              <span>{elapsed}s · {pct}%</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-canvas">
+              <div className="h-full rounded-full bg-success transition-all duration-500" style={{ width: `${pct}%` }} />
+            </div>
+            <p className="mt-3 text-[10px] text-text-muted">
+              Estimate — Claude is reading the code; this usually takes {deep ? '1–3 min' : 'under a minute'}.
+            </p>
+          </div>
+        ) : (
           <button
             onClick={scan}
             className="rounded-md bg-success px-5 py-2 font-mono text-sm text-bg transition-opacity hover:opacity-90"
           >
             {deep ? 'Start deep scan' : 'Start scan'}
           </button>
-        ) : (
-          <p className="font-mono text-sm text-success">
-            {loading ? (deep ? 'Parsing & assembling…' : 'Scanning & inferring…') : 'Done.'}
-          </p>
         )}
         {error && <p className="mt-3 text-sm text-warning">{error}</p>}
       </div>

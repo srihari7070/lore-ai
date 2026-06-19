@@ -19,19 +19,42 @@ export default function BuildControls() {
   const markCommitted = useGraphStore((s) => s.markCommitted);
   const setBuildResult = useGraphStore((s) => s.setBuildResult);
   const setHandoffResult = useGraphStore((s) => s.setHandoffResult);
-  const { build, handoff, loading } = useAI();
+  const setBuildProgress = useGraphStore((s) => s.setBuildProgress);
+  const pushActivity = useGraphStore((s) => s.pushActivity);
+  const { buildStream, handoff, loading } = useAI();
 
   const models = config.builderModels || ['claude-sonnet-4-6', 'claude-opus-4-8', 'claude-haiku-4-5'];
 
   const handleBuild = async () => {
-    const result = await build({
-      changes: stagedChanges(),
-      context: summary,
-      projectName: config.projectName,
-      model: builderModel,
+    setBuildProgress({
+      active: true,
+      percent: 4,
+      phase: 'interpreting',
+      lastAction: 'Understanding your changes…',
+      activities: [],
+      startedAt: Date.now(),
     });
-    setBuildResult(result);
-    if (result.ok) markCommitted();
+    try {
+      await buildStream(
+        { changes: stagedChanges(), context: summary, projectName: config.projectName, model: builderModel },
+        (ev) => {
+          if (ev.type === 'status') {
+            setBuildProgress({ phase: ev.phase, lastAction: ev.label, percent: ev.phase === 'building' ? 12 : 6 });
+          } else if (ev.type === 'activity') {
+            pushActivity(ev.action);
+          } else if (ev.type === 'done') {
+            setBuildProgress({ percent: 100, phase: 'done', lastAction: 'Done' });
+            setBuildResult(ev.result);
+            if (ev.result?.ok) markCommitted();
+            setTimeout(() => setBuildProgress(null), 600);
+          } else if (ev.type === 'error') {
+            setBuildProgress({ phase: 'error', lastAction: ev.error });
+          }
+        }
+      );
+    } catch {
+      setBuildProgress({ phase: 'error', lastAction: 'Build failed — see error.' });
+    }
   };
 
   // Hand-off: write the instruction to .lore/next-prompt.md, copy the pointer
@@ -54,10 +77,12 @@ export default function BuildControls() {
 
   return (
     <div className="flex items-center gap-2">
+      {/* "Apply your changes" group — the two buttons that actually make the change happen */}
+      <span className="font-mono text-[10px] uppercase tracking-wide text-text-muted">apply&nbsp;changes:</span>
       <select
         value={builderModel}
         onChange={(e) => setBuilderModel(e.target.value)}
-        title="Builder model"
+        title="Which Claude model builds the change"
         className="rounded border border-white/10 bg-canvas px-2 py-1.5 font-mono text-xs text-text-primary"
       >
         {models.map((m) => (
@@ -67,20 +92,20 @@ export default function BuildControls() {
         ))}
       </select>
       <button
-        onClick={handleHandoff}
-        disabled={loading || !hasStaged}
-        title="Write the instruction to .lore/next-prompt.md and copy a pointer to paste into your own Claude Code"
-        className="rounded-md border border-accent/40 px-3 py-1.5 font-mono text-sm text-accent transition-colors hover:bg-accent/10 disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {loading ? '…' : '→ Claude Code'}
-      </button>
-      <button
         onClick={handleBuild}
         disabled={loading || !hasStaged}
-        title={hasStaged ? 'Apply staged changes automatically (Lore builds in the background)' : 'No staged changes since last build'}
+        title={hasStaged ? 'Lore changes the code for you, here, with a live progress bar' : 'Nothing new to apply since the last build'}
         className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 font-mono text-sm text-accent transition-colors hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {loading ? 'Building…' : hasStaged ? '▶ Build' : '✓ Built'}
+        {loading ? 'Building…' : hasStaged ? '▶ Build it for me' : '✓ Up to date'}
+      </button>
+      <button
+        onClick={handleHandoff}
+        disabled={loading || !hasStaged}
+        title="Copy a one-line prompt to paste into your OWN Claude Code session (you run it there and watch)"
+        className="rounded-md border border-accent/40 px-3 py-1.5 font-mono text-sm text-accent transition-colors hover:bg-accent/10 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {loading ? '…' : '→ Send to Claude Code'}
       </button>
     </div>
   );

@@ -27,7 +27,7 @@ function parseJSON(text) {
  * final text. No tools + maxTurns:1 = pure generation (no file access), so this
  * behaves like a plain model call but with subscription-or-key auth.
  */
-async function runQuery(system, user, { model: modelOverride } = {}) {
+export async function runQuery(system, user, { model: modelOverride } = {}) {
   const stream = query({
     prompt: user,
     options: {

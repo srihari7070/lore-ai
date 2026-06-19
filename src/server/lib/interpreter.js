@@ -39,9 +39,6 @@ export async function interpretIntent({ changes, context, projectName }) {
     typeof changes === 'string' ? changes : JSON.stringify(changes, null, 2),
   ].join('\n');
 
-  const instruction = await askClaudeText(SYSTEM, user, {
-    model: INTERPRETER_MODEL,
-    maxTokens: 2000,
-  });
+  const instruction = await askClaudeText(SYSTEM, user, { model: INTERPRETER_MODEL });
   return instruction.trim();
 }

@@ -60,6 +60,49 @@ export function useAI() {
     [wrap]
   );
 
+  // Streaming build: POSTs and reads Server-Sent Events, calling onEvent for
+  // each progress event (status / activity / done / error).
+  const buildStream = useCallback(async ({ changes, context, projectName, model }, onEvent) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/build/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ changes, context, projectName, model }),
+      });
+      if (!res.body) throw new Error('Streaming not supported by the server response.');
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf('\n\n')) >= 0) {
+          const chunk = buf.slice(0, idx);
+          buf = buf.slice(idx + 2);
+          const line = chunk.split('\n').find((l) => l.startsWith('data: '));
+          if (line) {
+            try {
+              const ev = JSON.parse(line.slice(6));
+              if (ev.type === 'error') setError(ev.error);
+              onEvent(ev);
+            } catch {
+              /* ignore malformed frame */
+            }
+          }
+        }
+      }
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   // Hand-off: write the instruction to .lore/next-prompt.md and get a pointer
   // line to paste into the user's own Claude Code session.
   const handoff = useCallback(
@@ -68,5 +111,5 @@ export function useAI() {
     [wrap]
   );
 
-  return { loading, error, generatePlan, structureDump, runScan, runDeepScan, runSync, compile, build, handoff };
+  return { loading, error, generatePlan, structureDump, runScan, runDeepScan, runSync, compile, build, buildStream, handoff };
 }

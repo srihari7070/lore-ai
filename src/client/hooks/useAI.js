@@ -60,5 +60,13 @@ export function useAI() {
     [wrap]
   );
 
-  return { loading, error, generatePlan, structureDump, runScan, runDeepScan, runSync, compile, build };
+  // Hand-off: write the instruction to .lore/next-prompt.md and get a pointer
+  // line to paste into the user's own Claude Code session.
+  const handoff = useCallback(
+    ({ changes, context, projectName }) =>
+      wrap(() => post('/api/build/handoff', { changes, context, projectName })),
+    [wrap]
+  );
+
+  return { loading, error, generatePlan, structureDump, runScan, runDeepScan, runSync, compile, build, handoff };
 }

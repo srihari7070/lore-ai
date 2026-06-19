@@ -122,10 +122,12 @@ export const useGraphStore = create((set, get) => ({
   builderModel: 'claude-sonnet-4-6',
   committed: null,
   buildResult: null,
+  handoffResult: null,
 
   setConfig: (config) => set({ config }),
   setBuilderModel: (builderModel) => set({ builderModel }),
   setBuildResult: (buildResult) => set({ buildResult }),
+  setHandoffResult: (handoffResult) => set({ handoffResult }),
   markCommitted: () => set({ committed: get().serializeGraph() }),
 
   // Build the canvas from an AI-generated plan/scan payload (supports nesting).

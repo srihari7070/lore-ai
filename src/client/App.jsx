@@ -14,6 +14,7 @@ export default function App() {
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
   const compiledMarkdown = useGraphStore((s) => s.compiledMarkdown);
   const buildResult = useGraphStore((s) => s.buildResult);
+  const handoffResult = useGraphStore((s) => s.handoffResult);
   const [configLoaded, setConfigLoaded] = useState(false);
 
   useEffect(() => {
@@ -43,9 +44,73 @@ export default function App() {
 
           {compiledMarkdown && <CompiledModal />}
           {buildResult && <BuildResultModal />}
+          {handoffResult && <HandoffModal />}
         </div>
       </div>
     </ReactFlowProvider>
+  );
+}
+
+// ── Hand-off: pointer copied to clipboard, paste into your own Claude Code ───
+function HandoffModal() {
+  const handoffResult = useGraphStore((s) => s.handoffResult);
+  const setHandoffResult = useGraphStore((s) => s.setHandoffResult);
+  const r = handoffResult;
+  const [recopied, setRecopied] = useState(false);
+
+  const copyAgain = async () => {
+    try {
+      await navigator.clipboard.writeText(r.pointer);
+      setRecopied(true);
+      setTimeout(() => setRecopied(false), 1500);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  return (
+    <div className="absolute inset-0 z-30 flex items-center justify-center bg-bg/80 p-8 backdrop-blur-sm">
+      <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-xl border border-accent/40 bg-node shadow-glow-strong">
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-3">
+          <h2 className="font-mono text-sm text-success">
+            {r.copied ? '✓ Copied to clipboard' : '⚠ Copy the text below'}
+          </h2>
+          <button
+            onClick={() => setHandoffResult(null)}
+            className="rounded border border-white/10 px-3 py-1 font-mono text-xs text-text-muted hover:text-text-primary"
+          >
+            close
+          </button>
+        </div>
+        <div className="lore-scroll flex-1 space-y-4 overflow-auto p-5 text-sm">
+          <p className="text-text-primary">
+            {r.copied
+              ? 'Go back to your Claude Code session and paste — it will read the instruction file and run the changes while you watch.'
+              : 'Clipboard was blocked. Copy this line and paste it into your Claude Code session:'}
+          </p>
+          <div className="rounded border border-accent/30 bg-canvas p-3">
+            <div className="mb-1 font-mono text-[10px] uppercase tracking-wide text-text-muted">
+              Pasted into Claude Code
+            </div>
+            <p className="font-mono text-xs leading-relaxed text-accent">{r.pointer}</p>
+            <button
+              onClick={copyAgain}
+              className="mt-2 rounded border border-accent/40 px-2 py-0.5 font-mono text-[11px] text-accent hover:bg-accent/10"
+            >
+              {recopied ? 'copied' : 'copy again'}
+            </button>
+          </div>
+          <div>
+            <div className="mb-1 font-mono text-[10px] uppercase tracking-wide text-text-muted">
+              Written to {r.path} (what Claude Code will do)
+            </div>
+            <pre className="lore-scroll max-h-60 overflow-auto whitespace-pre-wrap rounded border border-white/10 bg-canvas p-3 font-mono text-xs leading-relaxed text-text-primary">
+              {r.instruction}
+            </pre>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

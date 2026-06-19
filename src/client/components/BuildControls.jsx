@@ -18,7 +18,8 @@ export default function BuildControls() {
   const summary = useGraphStore((s) => s.summary);
   const markCommitted = useGraphStore((s) => s.markCommitted);
   const setBuildResult = useGraphStore((s) => s.setBuildResult);
-  const { build, loading } = useAI();
+  const setHandoffResult = useGraphStore((s) => s.setHandoffResult);
+  const { build, handoff, loading } = useAI();
 
   const models = config.builderModels || ['claude-sonnet-4-6', 'claude-opus-4-8', 'claude-haiku-4-5'];
 
@@ -31,6 +32,24 @@ export default function BuildControls() {
     });
     setBuildResult(result);
     if (result.ok) markCommitted();
+  };
+
+  // Hand-off: write the instruction to .lore/next-prompt.md, copy the pointer
+  // line to the clipboard, and show the user where to paste it.
+  const handleHandoff = async () => {
+    const result = await handoff({
+      changes: stagedChanges(),
+      context: summary,
+      projectName: config.projectName,
+    });
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(result.pointer);
+      copied = true;
+    } catch {
+      /* clipboard blocked — modal still shows the text to copy manually */
+    }
+    setHandoffResult({ ...result, copied });
   };
 
   return (
@@ -48,9 +67,17 @@ export default function BuildControls() {
         ))}
       </select>
       <button
+        onClick={handleHandoff}
+        disabled={loading || !hasStaged}
+        title="Write the instruction to .lore/next-prompt.md and copy a pointer to paste into your own Claude Code"
+        className="rounded-md border border-accent/40 px-3 py-1.5 font-mono text-sm text-accent transition-colors hover:bg-accent/10 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {loading ? '…' : '→ Claude Code'}
+      </button>
+      <button
         onClick={handleBuild}
         disabled={loading || !hasStaged}
-        title={hasStaged ? 'Apply staged changes — the builder edits your project' : 'No staged changes since last build'}
+        title={hasStaged ? 'Apply staged changes automatically (Lore builds in the background)' : 'No staged changes since last build'}
         className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 font-mono text-sm text-accent transition-colors hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-40"
       >
         {loading ? 'Building…' : hasStaged ? '▶ Build' : '✓ Built'}

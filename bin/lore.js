@@ -45,13 +45,19 @@ async function run(mode, options) {
   const port = Number(process.env.LORE_PORT) || 3333;
   const url = `http://localhost:${port}`;
 
-  const server = await startServer({
-    port,
-    mode,
-    projectRoot,
-    packageRoot,
-    dev: Boolean(options.dev),
-  });
+  let server;
+  try {
+    server = await startServer({
+      port,
+      mode,
+      projectRoot,
+      packageRoot,
+      dev: Boolean(options.dev),
+    });
+  } catch (err) {
+    console.error(`\n  Error: ${err.message}\n`);
+    process.exit(1);
+  }
 
   console.log(`\n  Lore Map is running in ${mode} mode`);
   console.log(`  → ${url}\n`);

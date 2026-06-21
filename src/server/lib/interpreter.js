@@ -30,15 +30,22 @@ const SYSTEM = [
  * @returns {Promise<string>} a build-ready instruction
  */
 export async function interpretIntent({ changes, context, projectName }) {
-  const user = [
-    projectName ? `Project: ${projectName}` : '',
-    '',
-    'Current architectural context:',
-    context || '(none yet)',
-    '',
-    'Staged changes the user just made in the graph:',
-    typeof changes === 'string' ? changes : JSON.stringify(changes, null, 2),
-  ].join('\n');
+  // Pass only what changed — not the full project summary. Keeps the prompt
+  // small and forces the output to stay scoped to the actual edit.
+  const changesText = typeof changes === 'string' ? changes : JSON.stringify(changes, null, 2);
+
+  // Extract just the modified/added nodes from the diff so context is minimal.
+  let relevantContext = '';
+  if (context && typeof changes === 'object' && !changes.initial) {
+    const touched = [...(changes.modified || []), ...(changes.added || [])];
+    if (touched.length) {
+      relevantContext = `Project: ${projectName || 'unknown'}\nEdited nodes:\n${JSON.stringify(touched, null, 2)}`;
+    }
+  }
+
+  const user = relevantContext
+    ? `${relevantContext}\n\nFull staged diff:\n${changesText}`
+    : `Project: ${projectName || 'unknown'}\n\nStaged changes:\n${changesText}`;
 
   const instruction = await askClaudeText(SYSTEM, user, { model: INTERPRETER_MODEL });
   return instruction.trim();

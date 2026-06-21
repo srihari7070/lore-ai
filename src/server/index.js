@@ -8,7 +8,7 @@ import { createBuildRouter } from './routes/build.js';
 import { getAuthMode } from './lib/builder.js';
 
 /**
- * Boots the local Lore AI server.
+ * Boots the local Lore Map server.
  *
  * @param {object} options
  * @param {number} options.port        Port to listen on.
@@ -63,6 +63,16 @@ export function startServer({ port, mode, projectRoot, packageRoot, dev = false 
 
   return new Promise((resolve, reject) => {
     const server = app.listen(port, () => resolve(server));
-    server.on('error', reject);
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        reject(new Error(
+          `Port ${port} is already in use.\n` +
+          `  Another Lore session may still be running — close that tab and Ctrl+C it first.\n` +
+          `  Or use a different port:  LORE_PORT=3334 lore deep-scan`
+        ));
+      } else {
+        reject(err);
+      }
+    });
   });
 }

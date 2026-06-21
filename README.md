@@ -36,9 +36,9 @@ Each opens a local UI at **`http://localhost:3333`** and runs on your machine. C
 
 - **Explore visually.** A tree map with your project at the root and every part hanging off it. Double-click to drill in; breadcrumb to climb back out. Database blocks render as ER diagrams (tables → fields → relations); code blocks show files with their classes/functions and imports.
 - **Works on any language.** `deep-scan` has Claude read your real source, so it maps Python, JS/TS, Java, Go, SQL — whatever you've got. (Database schemas and JS/TS structure are also parsed precisely and for free.)
-- **Edit, then make it real — two ways:**
-  - **▶ Build it for me** — Lore changes the code here, with a **live progress bar** showing each file it touches.
+- **Edit, then make it real:**
   - **→ Send to Claude Code** — copies a one-line prompt to paste into your *own* Claude Code session, so you run it there and watch.
+  - **▶ Build it for me** *(coming soon)* — Lore changes the code here directly, with a live progress bar. In active development.
 - **Stays focused.** Every scan writes a small `.lore/map.md`, and builds read it first to jump straight to the relevant files instead of crawling the whole repo.
 - **Private by default.** Nothing leaves your machine except the calls to Claude, made with your own credentials.
 

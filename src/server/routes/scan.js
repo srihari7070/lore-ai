@@ -91,7 +91,7 @@ export function summarize(scan) {
 }
 
 const GRAPH_SYSTEM = [
-  'You are the reverse-engineering engine for Lore AI.',
+  'You are the reverse-engineering engine for Lore Map.',
   'Given a structured scan of an existing codebase, infer the architecture and produce a node graph.',
   'Label nodes by what they actually are (frameworks, layers, databases, API surfaces, integrations).',
   'Output JSON shaped exactly as:',
@@ -104,7 +104,7 @@ const GRAPH_SYSTEM = [
 ].join('\n');
 
 const GRAPH_DEEP_SYSTEM = [
-  'You are the deep reverse-engineering engine for Lore AI.',
+  'You are the deep reverse-engineering engine for Lore Map.',
   'You receive a high-level scan PLUS the ACTUAL SOURCE CODE of the project (any language: Python, JS/TS, Java, Go, SQL, etc.).',
   'Read the real code and assemble a NESTED architecture graph: top-level blocks, each containing its real internals as a child graph.',
   '',
@@ -213,7 +213,7 @@ export function createScanRouter(ctx) {
       const summary = summarize(scan);
 
       const system = [
-        'You are the sync engine for Lore AI.',
+        'You are the sync engine for Lore Map.',
         'Compare the existing lore.md blueprint against a fresh lightweight scan of the codebase.',
         'Identify ONLY what changed: new nodes, removed nodes, or stack/dependency shifts.',
         'Be surgical — do not rewrite unchanged parts.',

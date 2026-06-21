@@ -27,7 +27,7 @@ export function createAIRouter() {
       }
 
       const system = [
-        'You are the planning engine for Lore AI, an architecture planning tool.',
+        'You are the planning engine for Lore Map, an architecture planning tool.',
         'Given a project description, produce the MINIMUM required architecture as 4-6 root nodes.',
         'Do not invent product features or opinions — only structural architecture nodes.',
         'Also produce a short list of minimum required decisions the user must answer before the architecture is complete.',
@@ -56,7 +56,7 @@ export function createAIRouter() {
       }
 
       const system = [
-        'You are the structuring engine for Lore AI.',
+        'You are the structuring engine for Lore Map.',
         'Organize the user\'s raw notes into sub-nodes. This is a PASSIVE role:',
         'do NOT add opinions, suggestions, features, or ideas the user did not write.',
         'Only organize and label what is already present in the notes.',

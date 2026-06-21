@@ -185,6 +185,14 @@ export const useGraphStore = create((set, get) => ({
       selectedNodeId: null,
       decisions: (decisions || []).map((text, i) => ({ id: `d${i}`, text, answered: false })),
     });
+
+    // A scan/deep/sync map describes code that ALREADY exists, so seed the
+    // committed baseline to the freshly loaded map. Then a build sends only the
+    // delta the user edits — not "rebuild everything". Plan mode stays unseeded
+    // so its first build can scaffold a brand-new project from scratch.
+    if (get().config.mode !== 'plan') {
+      set({ committed: get().serializeGraph() });
+    }
   },
 
   // ── Drill-down navigation ────────────────────────────────────────────────

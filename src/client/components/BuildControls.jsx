@@ -77,28 +77,8 @@ export default function BuildControls() {
 
   return (
     <div className="flex items-center gap-2">
-      {/* "Apply your changes" group — the two buttons that actually make the change happen */}
       <span className="font-mono text-[10px] uppercase tracking-wide text-text-muted">apply&nbsp;changes:</span>
-      <select
-        value={builderModel}
-        onChange={(e) => setBuilderModel(e.target.value)}
-        title="Which Claude model builds the change"
-        className="rounded border border-white/10 bg-canvas px-2 py-1.5 font-mono text-xs text-text-primary"
-      >
-        {models.map((m) => (
-          <option key={m} value={m}>
-            {MODEL_LABELS[m] || m}
-          </option>
-        ))}
-      </select>
-      <button
-        onClick={handleBuild}
-        disabled={loading || !hasStaged}
-        title={hasStaged ? 'Lore changes the code for you, here, with a live progress bar' : 'Nothing new to apply since the last build'}
-        className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 font-mono text-sm text-accent transition-colors hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {loading ? 'Building…' : hasStaged ? '▶ Build it for me' : '✓ Up to date'}
-      </button>
+      {/* ▶ Build it for me — coming soon; hidden until prompt-size handling is stable */}
       <button
         onClick={handleHandoff}
         disabled={loading || !hasStaged}

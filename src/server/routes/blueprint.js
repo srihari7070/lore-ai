@@ -15,7 +15,7 @@ function handle(fn) {
 }
 
 const COMPILE_SYSTEM = [
-  'You are the lore.md compiler for Lore AI.',
+  'You are the lore.md compiler for Lore Map.',
   'Given the full node graph (nodes, sub-nodes, stack choices, verbatim notes, connections, decisions, open questions),',
   'produce a single structured Markdown blueprint that an AI coding tool can read for deep project context.',
   'Preserve the user\'s verbatim notes exactly under each node — do not paraphrase or editorialize them.',
@@ -76,8 +76,8 @@ export function createBlueprintRouter(ctx) {
       // blueprint; CLAUDE.md is the same intent, in the channel Claude reads.
       const claudePath = path.join(ctx.projectRoot, 'CLAUDE.md');
       const claudeBody =
-        '<!-- Maintained by Lore AI. This is the architectural intent for the ' +
-        'builder; edit the graph in Lore AI rather than by hand. -->\n\n' +
+        '<!-- Maintained by Lore Map. This is the architectural intent for the ' +
+        'builder; edit the graph in Lore Map rather than by hand. -->\n\n' +
         body;
       fs.writeFileSync(claudePath, claudeBody, 'utf8');
 

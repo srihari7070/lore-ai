@@ -2,6 +2,7 @@
 import { Command } from 'commander';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import fs from 'node:fs';
 import open from 'open';
 import dotenv from 'dotenv';
 import { startServer } from '../src/server/index.js';
@@ -10,15 +11,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, '..');
 const projectRoot = process.cwd();
 
+// Read the version from package.json so it can never drift out of sync again.
+const pkgVersion = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8')).version;
+
 // Load any existing .env from the project the user is working in.
 dotenv.config({ path: path.join(projectRoot, '.env') });
 
 const program = new Command();
 
 program
-  .name('lore-ai')
+  .name('lore')
   .description('Visual architecture planning and scanning for AI-assisted development')
-  .version('0.1.0');
+  .version(pkgVersion);
 
 async function ensureAuth() {
   // Subscription-first: Lore runs on your Claude plan via the Agent SDK
@@ -49,7 +53,7 @@ async function run(mode, options) {
     dev: Boolean(options.dev),
   });
 
-  console.log(`\n  Lore AI is running in ${mode} mode`);
+  console.log(`\n  Lore Map is running in ${mode} mode`);
   console.log(`  → ${url}\n`);
 
   if (options.open !== false && !options.dev) {
@@ -57,7 +61,7 @@ async function run(mode, options) {
   }
 
   const shutdown = () => {
-    console.log('\n  Shutting down Lore AI.');
+    console.log('\n  Shutting down Lore Map.');
     server.close(() => process.exit(0));
     // Force-exit if connections linger.
     setTimeout(() => process.exit(0), 500).unref();
